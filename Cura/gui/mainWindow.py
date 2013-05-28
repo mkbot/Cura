@@ -207,7 +207,6 @@ class mainWindow(wx.Frame):
 		self.Centre()
 
 		# Restore the window position, size & state from the preferences file
-		self.normalSashPos = 320
 		try:
 			if profile.getPreference('window_maximized') == 'True':
 				self.Maximize(True)
@@ -216,18 +215,26 @@ class mainWindow(wx.Frame):
 				posy = int(profile.getPreference('window_pos_y'))
 				width = int(profile.getPreference('window_width'))
 				height = int(profile.getPreference('window_height'))
-			if posx > 0 or posy > 0:
-				self.SetPosition((posx,posy))
-			if width > 0 and height > 0:
-				self.SetSize((width,height))
+				if posx > 0 or posy > 0:
+					self.SetPosition((posx,posy))
+				if width > 0 and height > 0:
+					self.SetSize((width,height))
 				
 			self.normalSashPos = int(profile.getPreference('window_normal_sash'))
 		except:
+			self.normalSashPos = 0
 			self.Maximize(True)
+		if self.normalSashPos < self.normalSettingsPanel.printPanel.GetBestSize()[0] + 5:
+			self.normalSashPos = self.normalSettingsPanel.printPanel.GetBestSize()[0] + 5
 
 		self.splitter.SplitVertically(self.leftPane, self.rightPane, self.normalSashPos)
 
 		if wx.Display.GetFromPoint(self.GetPosition()) < 0:
+			self.Centre()
+		if wx.Display.GetFromPoint((self.GetPositionTuple()[0] + self.GetSizeTuple()[1], self.GetPositionTuple()[1] + self.GetSizeTuple()[1])) < 0:
+			self.Centre()
+		if wx.Display.GetFromPoint(self.GetPosition()) < 0:
+			self.SetSize((800,600))
 			self.Centre()
 
 		self.updateSliceMode()
@@ -259,14 +266,13 @@ class mainWindow(wx.Frame):
 			self.splitter.SetSashSize(0)
 		else:
 			self.splitter.SetSashPosition(self.normalSashPos, True)
-
 			# Enabled sash
 			self.splitter.SetSashSize(4)
 								
 	def OnPreferences(self, e):
 		prefDialog = preferencesDialog.preferencesDialog(self)
 		prefDialog.Centre()
-		prefDialog.Show(True)
+		prefDialog.Show()
 
 	def _showOpenDialog(self, title, wildcard = meshLoader.wildcardFilter()):
 		dlg=wx.FileDialog(self, title, os.path.split(profile.getPreference('lastFile'))[0], style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST)
@@ -653,7 +659,7 @@ class normalSettingsPanel(configBase.configPanelBase):
 		c = configBase.SettingRow(right, "Initial layer thickness (mm)", 'bottom_thickness', '0.0', 'Layer thickness of the bottom layer. A thicker bottom layer makes sticking to the bed easier. Set to 0.0 to have the bottom layer thickness the same as the other layers.')
 		validators.validFloat(c, 0.0)
 		validators.warningAbove(c, lambda : (float(profile.getProfileSetting('nozzle_size')) * 3.0 / 4.0), "A bottom layer of more then %.2fmm (3/4 nozzle size) usually give bad results and is not recommended.")
-		c = configBase.SettingRow(right, "Cut off object bottom (mm)", 'object_sink', 0.05, 'Sinks the object into the platform, this can be used for objects that do not have a flat bottom and thus create a too small first layer.')
+		c = configBase.SettingRow(right, "Cut off object bottom (mm)", 'object_sink', '0.00', 'Sinks the object into the platform, this can be used for objects that do not have a flat bottom and thus create a too small first layer.')
 		validators.validFloat(c, 0.0)
 		configBase.settingNotify(c, lambda : self.GetParent().GetParent().GetParent().preview3d.Refresh())
 		c = configBase.SettingRow(right, "Duplicate outlines", 'enable_skin', False, 'Skin prints the outer lines of the prints twice, each time with half the thickness. This gives the illusion of a higher print quality.')
@@ -672,6 +678,10 @@ class normalSettingsPanel(configBase.configPanelBase):
 		self.nb.AddPage(self.alterationPanel, "Start/End-GCode")
 
 		self.Bind(wx.EVT_SIZE, self.OnSize)
+
+		self.nb.SetSize(self.GetSize())
+		self.UpdateSize(self.printPanel)
+		self.UpdateSize(self.advancedPanel)
 
 	def SizeLabelWidths(self, left, right):
 		leftWidth = self.getLabelColumnWidth(left)
@@ -724,7 +734,7 @@ class normalSettingsPanel(configBase.configPanelBase):
 				self.Layout()
 				configPanel.Thaw()
 		else:
-			if colSize1[0] > (colBestSize1[0] + colBestSize2[0]):
+			if max(colSize1[0], colSize2[0]) > (colBestSize1[0] + colBestSize2[0]):
 				configPanel.Freeze()
 				sizer = wx.BoxSizer(wx.HORIZONTAL)
 				sizer.Add(configPanel.leftPanel, proportion=1, border=35, flag=wx.EXPAND)
@@ -734,7 +744,7 @@ class normalSettingsPanel(configBase.configPanelBase):
 				configPanel.Layout()
 				self.Layout()
 				configPanel.Thaw()
-				
+
 	def updateProfileToControls(self):
 		super(normalSettingsPanel, self).updateProfileToControls()
 		self.alterationPanel.updateProfileToControls()
